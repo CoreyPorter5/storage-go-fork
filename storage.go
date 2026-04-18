@@ -182,6 +182,7 @@ func (c *Client) UploadToSignedUrl(filePath string, fileBody io.Reader) (*Upload
 	if err != nil {
 		return nil, err
 	}
+	req.Header = headers
 
 	var response UploadToSignedUrlResponse
 	_, err = c.Do(req, &response)
