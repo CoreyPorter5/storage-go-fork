@@ -19,6 +19,16 @@ const (
 	defaultSortOrder        = "asc"
 )
 
+func cloneHeader(h http.Header) http.Header {
+	cloned := make(http.Header, len(h))
+	for k, v := range h {
+		copied := make([]string, len(v))
+		copy(copied, v)
+		cloned[k] = copied
+	}
+	return cloned
+}
+
 func (c *Client) UploadOrUpdateFile(
 	bucketId string,
 	relativePath string,
@@ -29,16 +39,18 @@ func (c *Client) UploadOrUpdateFile(
 	path := removeEmptyFolderName(bucketId + "/" + relativePath)
 	uploadURL := c.clientTransport.baseUrl.String() + "/object/" + path
 
+	headers := cloneHeader(c.clientTransport.header)
+
 	// Check on file options
 	if len(options) > 0 {
 		if options[0].CacheControl != nil {
-			c.clientTransport.header.Set("cache-control", *options[0].CacheControl)
+			headers.Set("cache-control", *options[0].CacheControl)
 		}
 		if options[0].ContentType != nil {
-			c.clientTransport.header.Set("content-type", *options[0].ContentType)
+			headers.Set("content-type", *options[0].ContentType)
 		}
 		if options[0].Upsert != nil {
-			c.clientTransport.header.Set("x-upsert", strconv.FormatBool(*options[0].Upsert))
+			headers.Set("x-upsert", strconv.FormatBool(*options[0].Upsert))
 		}
 	}
 	method := http.MethodPost
@@ -50,13 +62,12 @@ func (c *Client) UploadOrUpdateFile(
 	if err != nil {
 		return FileUploadResponse{}, err
 	}
+	req.Header = headers
 
 	var response FileUploadResponse
 	_, err = c.Do(req, &response)
 
 	// set content-type back to default after request
-	c.clientTransport.header.Set("content-type", "application/json")
-	
 	if err != nil {
 		return FileUploadResponse{}, err
 	}
@@ -157,9 +168,11 @@ func (c *Client) CreateSignedUploadUrl(bucketId string, filePath string) (Signed
 // filePath string The file path, including the file name. Should be of the format `folder/subfolder/filename.png`
 // fileBody io.Reader The file data
 func (c *Client) UploadToSignedUrl(filePath string, fileBody io.Reader) (*UploadToSignedUrlResponse, error) {
-	c.clientTransport.header.Set("cache-control", defaultFileCacheControl)
-	c.clientTransport.header.Set("content-type", defaultFileContentType)
-	c.clientTransport.header.Set("x-upsert", strconv.FormatBool(defaultFileUpsert))
+	headers := cloneHeader(c.clientTransport.header)
+
+	headers.Set("cache-control", defaultFileCacheControl)
+	headers.Set("content-type", defaultFileContentType)
+	headers.Set("x-upsert", strconv.FormatBool(defaultFileUpsert))
 
 	bodyRequest := bufio.NewReader(fileBody)
 	path := removeEmptyFolderName(filePath)
